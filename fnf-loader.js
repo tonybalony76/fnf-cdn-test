@@ -36,8 +36,15 @@
   // the initial loading message has been removed.
   window.addEventListener("error", event => {
     const message = event && (event.message || (event.error && event.error.message));
-    if (message) fail("Runtime JavaScript error: " + message);
-  });
+    const location = event && event.filename
+      ? " (" + event.filename + (event.lineno ? ":" + event.lineno : "") + (event.colno ? ":" + event.colno : "") + ")"
+      : "";
+    if (message) fail("Runtime JavaScript error: " + message + location);
+    else if (event && event.target && event.target !== window) {
+      const resource = event.target.src || event.target.href || event.target.tagName || "unknown resource";
+      fail("Could not load resource: " + resource);
+    }
+  }, true);
   window.addEventListener("unhandledrejection", event => {
     const reason = event && event.reason;
     const message = reason && reason.message ? reason.message : String(reason);
@@ -165,6 +172,9 @@
     document.head.appendChild(fontStyle);
 
     const script = document.createElement("script");
+    // Request CORS-enabled script loading so browsers expose the real runtime
+    // exception instead of the opaque cross-origin "Script error." message.
+    script.crossOrigin = "anonymous";
     script.src = cdnUrl("Funkin.js");
     script.onload = () => {
       try {
