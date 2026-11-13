@@ -105,7 +105,7 @@
     try { p = decodeURIComponent(p); } catch (_) {}
     while (p.startsWith("/")) p = p.slice(1);
     const candidates = [p];
-    for (const marker of ["assets/", "flixel/"]) {
+    for (const marker of ["assets/", "flixel/", "manifest/"]) {
       const at = p.lastIndexOf(marker);
       if (at >= 0) candidates.push(p.slice(at));
     }
