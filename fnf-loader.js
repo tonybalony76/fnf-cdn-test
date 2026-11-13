@@ -184,11 +184,11 @@
       // Haxe may inline Type.getClassName(eventCls) into eventCls.__name__.
       // If a generated built-in event entry is null, substitute the base class
       // name at the exact dereference; registerBaseEvents skips that base class.
-      source = source.replace(/\\bType\\.getClassName\\s*\\(\\s*eventCls\\s*\\)/g, match => {
+      source = source.replace(/\bType\.getClassName\s*\(\s*eventCls\s*\)/g, match => {
         patched++;
         return "Type.getClassName(eventCls || " + baseExpr + ")";
       });
-      source = source.replace(/eventCls\\.__name__/g, match => {
+      source = source.replace(/eventCls\.__name__/g, match => {
         patched++;
         return "(eventCls || " + baseExpr + ").__name__";
       });
