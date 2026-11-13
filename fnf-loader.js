@@ -178,18 +178,37 @@
     script.src = cdnUrl("Funkin.js");
     script.onload = () => {
       try {
-        // Log the exact class name when Haxe's runtime class registry cannot
-        // resolve one. This identifies missing compiled classes behind the
-        // SongEventRegistry __name__ crash without changing game behavior.
-        const typeApi = (typeof Type !== "undefined") ? Type : window.Type;
-        if (typeApi && typeof typeApi.resolveClass === "function" && !typeApi.__fnfResolveHooked) {
-          const originalResolveClass = typeApi.resolveClass;
-          typeApi.resolveClass = function(name) {
-            const resolved = originalResolveClass.call(this, name);
-            if (resolved == null) console.error("[FNF missing compiled class]", name);
-            return resolved;
-          };
-          typeApi.__fnfResolveHooked = true;
+        // Some built-in song-event classes are listed in Haxe's generated
+        // class metadata but are absent from the browser bundle. During
+        // CompiledClassList.init(), Type.resolveClass() then returns null and
+        // SongEventRegistry crashes while reading that class's __name__.
+        // Treat only unresolved classes in the song-event package as the base
+        // SongEvent class; registerBaseEvents already intentionally skips it.
+        const hxClasses = window.$hxClasses || (typeof $hxClasses !== "undefined" ? $hxClasses : null);
+        const baseSongEvent = hxClasses && hxClasses["funkin.play.event.SongEvent"];
+        const typeApis = [
+          hxClasses && hxClasses.Type,
+          (typeof Type !== "undefined") ? Type : null,
+          window.Type
+        ].filter((api, index, all) => api && all.indexOf(api) === index);
+        if (baseSongEvent) {
+          for (const typeApi of typeApis) {
+            if (typeof typeApi.resolveClass !== "function" || typeApi.__fnfEventFallbackInstalled) continue;
+            const originalResolveClass = typeApi.resolveClass;
+            typeApi.resolveClass = function(name) {
+              const resolved = originalResolveClass.call(this, name);
+              if (resolved == null && typeof name === "string" &&
+                  name.startsWith("funkin.play.event.") &&
+                  name !== "funkin.play.event.SongEvent") {
+                console.warn("[FNF skipped unresolved built-in song event]", name);
+                return baseSongEvent;
+              }
+              return resolved;
+            };
+            typeApi.__fnfEventFallbackInstalled = true;
+          }
+        } else {
+          console.warn("[FNF loader] Could not locate Haxe SongEvent class; event fallback not installed.");
         }
         if (!window.lime || typeof window.lime.embed !== "function") throw new Error("Funkin.js loaded, but the Lime game engine did not initialize");
         window.lime.embed("Funkin", "openfl-content", 1280, 720, { parameters:{} });
