@@ -171,52 +171,48 @@
     fontStyle.textContent = fontCss;
     document.head.appendChild(fontStyle);
 
-    const script = document.createElement("script");
-    // Request CORS-enabled script loading so browsers expose the real runtime
-    // exception instead of the opaque cross-origin "Script error." message.
-    script.crossOrigin = "anonymous";
-    script.src = cdnUrl("Funkin.js");
-    script.onload = () => {
-      try {
-        // Some built-in song-event classes are listed in Haxe's generated
-        // class metadata but are absent from the browser bundle. During
-        // CompiledClassList.init(), Type.resolveClass() then returns null and
-        // SongEventRegistry crashes while reading that class's __name__.
-        // Treat only unresolved classes in the song-event package as the base
-        // SongEvent class; registerBaseEvents already intentionally skips it.
-        const hxClasses = window.$hxClasses || (typeof $hxClasses !== "undefined" ? $hxClasses : null);
-        const baseSongEvent = hxClasses && hxClasses["funkin.play.event.SongEvent"];
-        const typeApis = [
-          hxClasses && hxClasses.Type,
-          (typeof Type !== "undefined") ? Type : null,
-          window.Type
-        ].filter((api, index, all) => api && all.indexOf(api) === index);
-        if (baseSongEvent) {
-          for (const typeApi of typeApis) {
-            if (typeof typeApi.resolveClass !== "function" || typeApi.__fnfEventFallbackInstalled) continue;
-            const originalResolveClass = typeApi.resolveClass;
-            typeApi.resolveClass = function(name) {
-              const resolved = originalResolveClass.call(this, name);
-              if (resolved == null && typeof name === "string" &&
-                  name.startsWith("funkin.play.event.") &&
-                  name !== "funkin.play.event.SongEvent") {
-                console.warn("[FNF skipped unresolved built-in song event]", name);
-                return baseSongEvent;
-              }
-              return resolved;
-            };
-            typeApi.__fnfEventFallbackInstalled = true;
-          }
-        } else {
-          console.warn("[FNF loader] Could not locate Haxe SongEvent class; event fallback not installed.");
-        }
-        if (!window.lime || typeof window.lime.embed !== "function") throw new Error("Funkin.js loaded, but the Lime game engine did not initialize");
-        window.lime.embed("Funkin", "openfl-content", 1280, 720, { parameters:{} });
-        const loading = document.getElementById("fnf-loading");
-        if (loading) loading.remove();
-      } catch (e) { fail(e.message || String(e)); }
-    };
-    script.onerror = () => fail("Funkin.js failed to download");
-    document.head.appendChild(script);
+    // Download the compiled bundle as text and patch the failing Haxe event-class
+    // dereference before executing it. The previous resolver hook ran too late
+    // / against a symbol that is not exposed outside the compiled bundle.
+    fetch(cdnUrl("Funkin.js"), { mode: "cors" }).then(response => {
+      if (!response.ok) throw new Error("Could not download Funkin.js (" + response.status + ")");
+      return response.text();
+    }).then(source => {
+      const baseExpr = '$hxClasses["funkin.play.event.SongEvent"]';
+      let patched = 0;
+
+      // Haxe may inline Type.getClassName(eventCls) into eventCls.__name__.
+      // If a generated built-in event entry is null, substitute the base class
+      // name at the exact dereference; registerBaseEvents skips that base class.
+      source = source.replace(/\\bType\\.getClassName\\s*\\(\\s*eventCls\\s*\\)/g, match => {
+        patched++;
+        return "Type.getClassName(eventCls || " + baseExpr + ")";
+      });
+      source = source.replace(/eventCls\\.__name__/g, match => {
+        patched++;
+        return "(eventCls || " + baseExpr + ").__name__";
+      });
+
+      if (!patched) throw new Error("The expected SongEventRegistry class-name expression was not found in Funkin.js; no patch was applied");
+
+      console.info("[FNF patch] Applied", patched, "SongEventRegistry null-class guard(s)");
+      const script = document.createElement("script");
+      const bundleUrl = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+      script.onload = () => {
+        URL.revokeObjectURL(bundleUrl);
+        try {
+          if (!window.lime || typeof window.lime.embed !== "function") throw new Error("Funkin.js loaded, but the Lime game engine did not initialize");
+          window.lime.embed("Funkin", "openfl-content", 1280, 720, { parameters:{} });
+          const loading = document.getElementById("fnf-loading");
+          if (loading) loading.remove();
+        } catch (e) { fail(e.message || String(e)); }
+      };
+      script.onerror = () => {
+        URL.revokeObjectURL(bundleUrl);
+        fail("The patched Funkin.js bundle could not be executed");
+      };
+      script.src = bundleUrl;
+      document.head.appendChild(script);
+    }).catch(e => fail(e.message || String(e)));
   }).catch(e => fail(e.message || String(e)));
 })();
