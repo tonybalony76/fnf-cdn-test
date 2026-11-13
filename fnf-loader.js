@@ -130,7 +130,18 @@
       configurable: true,
       enumerable: d.enumerable,
       get() { return d.get.call(this); },
-      set(value) { return d.set.call(this, cdnUrl(String(value))); }
+      set(value) {
+        const original = String(value);
+        const rewritten = cdnUrl(original);
+
+        // WebGL textures require cross-origin images to be fetched in CORS mode.
+        // Set crossOrigin before src so the browser applies it to the request.
+        if (proto === HTMLImageElement.prototype && property === "src" && rewritten !== original) {
+          try { this.crossOrigin = "anonymous"; } catch (_) {}
+        }
+
+        return d.set.call(this, rewritten);
+      }
     });
   }
 
@@ -162,7 +173,18 @@
   const originalSetAttribute = Element.prototype.setAttribute;
   Element.prototype.setAttribute = function(name, value) {
     const n = String(name).toLowerCase();
-    if (["src","href","poster"].includes(n)) value = cdnUrl(String(value));
+    if (["src","href","poster"].includes(n)) {
+      const original = String(value);
+      const rewritten = cdnUrl(original);
+
+      // setAttribute("src", ...) is another common Image loading path.
+      // Set the CORS mode before the browser starts fetching the CDN image.
+      if (this instanceof HTMLImageElement && n === "src" && rewritten !== original) {
+        try { this.crossOrigin = "anonymous"; } catch (_) {}
+      }
+
+      value = rewritten;
+    }
     return originalSetAttribute.call(this, name, value);
   };
 
