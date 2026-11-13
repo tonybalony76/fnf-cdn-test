@@ -58,11 +58,21 @@
       const patchInfo = window.__fnfPatchSummary
         ? "\nPatch checks: " + JSON.stringify(window.__fnfPatchSummary)
         : "\nPatch checks: unavailable";
+      let originFrame = "";
+      const frameMatch = stack.match(/blob:[^\s)]+:(\d+):(\d+)/);
+      if (source && frameMatch) {
+        const frameLine = Number(frameMatch[1]);
+        if (frameLine > 0) {
+          const lines = source.split("\n");
+          originFrame = lines[frameLine - 1] || "";
+          originFrame = "\nFailing frame source (line " + frameLine + "): " + originFrame.slice(0,1000);
+        }
+      }
       if (sourceLine) console.error("[FNF generated source line " + event.lineno + "]", sourceLine);
       console.error("[FNF full error stack]", stack);
       fail("Runtime JavaScript error: " + message + location
         + (sourceLine ? "\nGenerated code: " + sourceLine : "")
-        + patchInfo + "\nOriginal stack:\n" + stack);
+        + patchInfo + originFrame + "\nOriginal stack:\n" + stack);
     }
     else if (event && event.target && event.target !== window) {
       const resource = event.target.src || event.target.href || event.target.tagName || "unknown resource";
@@ -116,7 +126,17 @@
 
   function cdnUrl(input) {
     const key = pathKey(input);
-    if (!key) return input;
+    if (!key) {
+      const raw = String(input).replace(/^\.\//, "");
+      if (/^(assets|flixel)\//.test(raw) && window.__fnfMap) {
+        window.__fnfUnmappedAssets = window.__fnfUnmappedAssets || [];
+        if (!window.__fnfUnmappedAssets.includes(raw)) {
+          window.__fnfUnmappedAssets.push(raw);
+          console.warn("[FNF unmapped asset path]", raw);
+        }
+      }
+      return input;
+    }
     const item = window.__fnfMap.files[key];
     const base = REPO_BASES[item.repo];
     return base ? base + key.split("/").map(encodeURIComponent).join("/") : input;
@@ -147,7 +167,19 @@
 
   const originalOpen = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function(method, url, ...rest) {
-    return originalOpen.call(this, method, cdnUrl(String(url)), ...rest);
+    const requestedUrl = String(url);
+    const rewrittenUrl = cdnUrl(requestedUrl);
+    this.addEventListener("error", () => {
+      console.error("[FNF XHR network/CORS failure]", method, rewrittenUrl);
+      fail("Asset network/CORS request failed: " + rewrittenUrl);
+    }, { once:true });
+    this.addEventListener("loadend", () => {
+      if (this.status >= 400) {
+        console.error("[FNF XHR HTTP failure]", this.status, method, rewrittenUrl);
+        fail("Asset request returned HTTP " + this.status + ": " + rewrittenUrl);
+      }
+    }, { once:true });
+    return originalOpen.call(this, method, rewrittenUrl, ...rest);
   };
 
   if (window.fetch) {
@@ -268,6 +300,30 @@
       script.onload = () => {
         URL.revokeObjectURL(bundleUrl);
         try {
+          // Recover to the standard difficulty list if one malformed song entry
+          // throws while the Freeplay menu is scanning all song variations.
+          const classMap = window.$hxClasses || {};
+          const songRegistryClass = classMap["funkin.data.song.SongRegistry"];
+          const constantsClass = classMap["funkin.util.Constants"];
+          const fallbackDifficulties = Array.isArray(constantsClass && constantsClass.DEFAULT_DIFFICULTY_LIST_FULL)
+            ? constantsClass.DEFAULT_DIFFICULTY_LIST_FULL.slice()
+            : ["easy", "normal", "hard"];
+          let difficultyGuardInstalled = false;
+          if (songRegistryClass && songRegistryClass.prototype
+            && typeof songRegistryClass.prototype.listAllDifficulties === "function") {
+            const originalListAllDifficulties = songRegistryClass.prototype.listAllDifficulties;
+            songRegistryClass.prototype.listAllDifficulties = function(...args) {
+              try {
+                const result = originalListAllDifficulties.apply(this, args);
+                return Array.isArray(result) ? result : fallbackDifficulties.slice();
+              } catch (error) {
+                console.warn("[FNF] Song difficulty scan failed; using the default difficulty list.", error);
+                return fallbackDifficulties.slice();
+              }
+            };
+            difficultyGuardInstalled = true;
+          }
+          window.__fnfPatchSummary.difficultyRegistryGuarded = difficultyGuardInstalled;
           if (!window.lime || typeof window.lime.embed !== "function") throw new Error("Funkin.js loaded, but the Lime game engine did not initialize");
           window.lime.embed("Funkin", "openfl-content", 1280, 720, { parameters:{} });
           const loading = document.getElementById("fnf-loading");
