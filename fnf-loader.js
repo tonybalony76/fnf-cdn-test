@@ -282,8 +282,28 @@
         return "(noteKindCls == null ? " + noteKindFallbackName + " : noteKindCls.__name__)";
       });
 
+      // In this compiled build, SongRegistry.listAllDifficulties iterates a
+      // collection returned by listEntryIds(). The collection is unexpectedly
+      // null at runtime; make the loop treat that as an empty list so the
+      // method's existing default-difficulty fallback can run.
+      const difficultyMarker = "listAllDifficulties";
+      const difficultyMarkerIndex = source.indexOf(difficultyMarker);
+      let difficultyLoopGuarded = false;
+      if (difficultyMarkerIndex >= 0) {
+        const methodWindow = source.slice(difficultyMarkerIndex, difficultyMarkerIndex + 7000);
+        const loopPattern = /while\s*\(\s*_g2\s*<\s*_g3\.length\s*\)\s*\{/;
+        const loopMatch = loopPattern.exec(methodWindow);
+        if (loopMatch) {
+          const insertionPoint = difficultyMarkerIndex + loopMatch.index;
+          const guard = 'if (_g3 == null) { console.warn("[FNF] SongRegistry difficulty scan received a null list; using fallback difficulties."); _g3 = []; }\\n';
+          source = source.slice(0, insertionPoint) + guard + source.slice(insertionPoint);
+          difficultyLoopGuarded = true;
+        }
+      }
+
       if (!eventPatched) throw new Error("The SongEventRegistry class-name expression was not found; no patch was applied");
       if (!noteKindPatched) throw new Error("The NoteKindManager class-name expression was not found; no patch was applied");
+      if (!difficultyLoopGuarded) throw new Error("Could not locate SongRegistry's null difficulty-list loop; no patch was applied");
 
       window.__fnfPatchSummary = {
         songEventGuards: eventPatched,
@@ -291,7 +311,8 @@
         remainingEventClsNameReads: (source.match(/eventCls\\.__name__/g) || []).length,
         remainingNoteKindClsNameReads: (source.match(/noteKindCls\\.__name__/g) || []).length,
         remainingEventGetClassNameCalls: (source.match(/Type\\.getClassName\\s*\\(\\s*eventCls\\s*\\)/g) || []).length,
-        remainingNoteKindGetClassNameCalls: (source.match(/Type\\.getClassName\\s*\\(\\s*noteKindCls\\s*\\)/g) || []).length
+        remainingNoteKindGetClassNameCalls: (source.match(/Type\\.getClassName\\s*\\(\\s*noteKindCls\\s*\\)/g) || []).length,
+        difficultyLoopGuarded: difficultyLoopGuarded
       };
       console.info("[FNF patch] Applied class registry guards", window.__fnfPatchSummary);
       window.__fnfPatchedSource = source;
@@ -300,30 +321,9 @@
       script.onload = () => {
         URL.revokeObjectURL(bundleUrl);
         try {
-          // Recover to the standard difficulty list if one malformed song entry
-          // throws while the Freeplay menu is scanning all song variations.
-          const classMap = window.$hxClasses || {};
-          const songRegistryClass = classMap["funkin.data.song.SongRegistry"];
-          const constantsClass = classMap["funkin.util.Constants"];
-          const fallbackDifficulties = Array.isArray(constantsClass && constantsClass.DEFAULT_DIFFICULTY_LIST_FULL)
-            ? constantsClass.DEFAULT_DIFFICULTY_LIST_FULL.slice()
-            : ["easy", "normal", "hard"];
-          let difficultyGuardInstalled = false;
-          if (songRegistryClass && songRegistryClass.prototype
-            && typeof songRegistryClass.prototype.listAllDifficulties === "function") {
-            const originalListAllDifficulties = songRegistryClass.prototype.listAllDifficulties;
-            songRegistryClass.prototype.listAllDifficulties = function(...args) {
-              try {
-                const result = originalListAllDifficulties.apply(this, args);
-                return Array.isArray(result) ? result : fallbackDifficulties.slice();
-              } catch (error) {
-                console.warn("[FNF] Song difficulty scan failed; using the default difficulty list.", error);
-                return fallbackDifficulties.slice();
-              }
-            };
-            difficultyGuardInstalled = true;
-          }
-          window.__fnfPatchSummary.difficultyRegistryGuarded = difficultyGuardInstalled;
+          // The null-list fallback is applied directly to the generated
+          // SongRegistry loop before the bundle executes.
+          window.__fnfPatchSummary.difficultyRegistryGuarded = window.__fnfPatchSummary.difficultyLoopGuarded;
           if (!window.lime || typeof window.lime.embed !== "function") throw new Error("Funkin.js loaded, but the Lime game engine did not initialize");
           window.lime.embed("Funkin", "openfl-content", 1280, 720, { parameters:{} });
           const loading = document.getElementById("fnf-loading");
