@@ -131,37 +131,6 @@
     script.src = cdnUrl("Funkin.js");
     script.onload = () => {
       try {
-        // Guard the compiled SongEvent registry against unresolved class names.
-        // Haxe currently stores those failed lookups as undefined list items;
-        // SongEventRegistry dereferences each item before checking it.
-        const registry = window.funkin_data_event_SongEventRegistry;
-        if (registry && registry.BUILTIN_EVENTS) {
-          const original = registry.BUILTIN_EVENTS;
-          let head = null;
-          let tail = null;
-          let kept = 0;
-          let skipped = 0;
-          for (let node = original.h; node; node = node.next) {
-            if (node.item == null) {
-              skipped++;
-              continue;
-            }
-            const entry = { item: node.item, next: null };
-            if (tail) tail.next = entry;
-            else head = entry;
-            tail = entry;
-            kept++;
-          }
-          if (skipped > 0) {
-            registry.BUILTIN_EVENTS = { h: head, q: tail, length: kept };
-            console.warn("[FNF registry guard] Skipped " + skipped + " unresolved built-in event class(es); kept " + kept + ".");
-          } else {
-            console.info("[FNF registry guard] No unresolved built-in event classes found.");
-          }
-        } else {
-          console.warn("[FNF registry guard] SongEvent registry was not exposed before Lime startup.");
-        }
-
         if (!window.lime || typeof window.lime.embed !== "function") throw new Error("Funkin.js loaded, but the Lime game engine did not initialize");
         window.lime.embed("Funkin", "openfl-content", 1280, 720, { parameters:{} });
         const loading = document.getElementById("fnf-loading");
