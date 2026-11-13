@@ -142,11 +142,11 @@
     if (!base) return input;
 
     const encodedPath = key.split("/").map(encodeURIComponent).join("/");
-    // Audio assets were returning HTTP 403 from the default jsDelivr edge.
-    // Keep the same pinned repository and path, but serve audio through the
-    // Fastly jsDelivr endpoint. All non-audio assets retain their known-good
-    // CDN route.
-    if (/\\.(mp3|ogg|wav|m4a|aac|flac)$/i.test(key)) {
+    // Use jsDelivr's alternate Fastly edge for media files. The default
+    // edge previously returned intermittent 403 responses for audio, and
+    // stage/background textures were also failing to appear. Keep all files
+    // pinned to the exact same repository commits.
+    if (/\.(?:mp3|ogg|wav|m4a|aac|flac|png|jpe?g|webp|gif|bmp|avif)$/i.test(key)) {
       return base.replace("https://cdn.jsdelivr.net/", "https://fastly.jsdelivr.net/") + encodedPath;
     }
     return base + encodedPath;
