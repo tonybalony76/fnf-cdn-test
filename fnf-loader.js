@@ -21,28 +21,65 @@
   window.addEventListener("touchmove", e => e.preventDefault(), { passive:false });
 
   function fail(message) {
-    const el = document.getElementById("fnf-loading");
-    if (el) el.textContent = "FNF could not start: " + message;
+    let el = document.getElementById("fnf-loading");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "fnf-loading";
+      el.style.cssText = "position:fixed;inset:0;display:grid;place-items:center;padding:24px;box-sizing:border-box;background:#000;color:#fff;font:16px Arial;z-index:999999;text-align:center;white-space:pre-wrap";
+      document.body.appendChild(el);
+    }
+    el.textContent = "FNF could not start: " + message;
     console.error("[FNF CDN loader]", message);
   }
+
+  // Keep runtime failures visible even after Lime has created its canvas and
+  // the initial loading message has been removed.
+  window.addEventListener("error", event => {
+    const message = event && (event.message || (event.error && event.error.message));
+    if (message) fail("Runtime JavaScript error: " + message);
+  });
+  window.addEventListener("unhandledrejection", event => {
+    const reason = event && event.reason;
+    const message = reason && reason.message ? reason.message : String(reason);
+    fail("Unhandled promise rejection: " + message);
+  });
 
   function pathKey(input) {
     if (typeof input !== "string") return null;
     if (/^(data:|blob:|javascript:)/i.test(input)) return null;
-    let u;
-    try { u = new URL(input, document.baseURI); } catch (_) { return null; }
-    if (u.origin !== location.origin) return null;
+
+    // Google Sites may run custom embeds in a sandboxed iframe whose origin is
+    // opaque ("null"). document.baseURI can still point to the Sites page, so
+    // comparing URL.origin with location.origin incorrectly rejects relative
+    // game assets. Resolve when possible, and fall back to the raw path when
+    // the iframe uses an about:srcdoc base URL.
     let p;
-    try { p = decodeURIComponent(u.pathname); } catch (_) { p = u.pathname; }
-    p = p.replace(/^\/+/, "");
+    try {
+      const base = document.baseURI || window.location.href || "https://example.invalid/";
+      p = new URL(input, base).pathname;
+    } catch (_) {
+      p = input.split(/[?#]/, 1)[0];
+    }
+
+    try { p = decodeURIComponent(p); } catch (_) {}
+    while (p.startsWith("/")) p = p.slice(1);
     const candidates = [p];
     for (const marker of ["assets/", "flixel/"]) {
       const at = p.lastIndexOf(marker);
       if (at >= 0) candidates.push(p.slice(at));
     }
-    const tail = p.split("/").pop();
-    if (tail === "Funkin.js" || tail === "favicon.png") candidates.push(tail);
-    for (const c of candidates) if (window.__fnfMap && window.__fnfMap.files[c]) return c;
+
+    // Only use a basename fallback for relative requests. This avoids
+    // rewriting unrelated third-party URLs that merely share a filename.
+    const isRelative = !/^[a-z][a-z0-9+.-]*:/i.test(input) && !input.startsWith("//");
+    if (isRelative) {
+      const tail = p.split("/").pop();
+      if (tail === "Funkin.js" || tail === "favicon.png") candidates.push(tail);
+    }
+
+    for (const c of candidates) {
+      if (window.__fnfMap && window.__fnfMap.files[c]) return c;
+    }
     return null;
   }
 
