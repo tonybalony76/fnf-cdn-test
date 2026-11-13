@@ -295,7 +295,7 @@
         const loopMatch = loopPattern.exec(methodWindow);
         if (loopMatch) {
           const insertionPoint = difficultyMarkerIndex + loopMatch.index;
-          const guard = 'if (_g3 == null) { console.warn("[FNF] SongRegistry difficulty scan received a null list; using fallback difficulties."); _g3 = []; }\\n';
+          const guard = 'if (_g3 == null) { console.warn("[FNF] SongRegistry difficulty scan received a null list; using fallback difficulties."); _g3 = []; }\n';
           source = source.slice(0, insertionPoint) + guard + source.slice(insertionPoint);
           difficultyLoopGuarded = true;
         }
