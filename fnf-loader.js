@@ -178,6 +178,19 @@
     script.src = cdnUrl("Funkin.js");
     script.onload = () => {
       try {
+        // Log the exact class name when Haxe's runtime class registry cannot
+        // resolve one. This identifies missing compiled classes behind the
+        // SongEventRegistry __name__ crash without changing game behavior.
+        const typeApi = (typeof Type !== "undefined") ? Type : window.Type;
+        if (typeApi && typeof typeApi.resolveClass === "function" && !typeApi.__fnfResolveHooked) {
+          const originalResolveClass = typeApi.resolveClass;
+          typeApi.resolveClass = function(name) {
+            const resolved = originalResolveClass.call(this, name);
+            if (resolved == null) console.error("[FNF missing compiled class]", name);
+            return resolved;
+          };
+          typeApi.__fnfResolveHooked = true;
+        }
         if (!window.lime || typeof window.lime.embed !== "function") throw new Error("Funkin.js loaded, but the Lime game engine did not initialize");
         window.lime.embed("Funkin", "openfl-content", 1280, 720, { parameters:{} });
         const loading = document.getElementById("fnf-loading");
