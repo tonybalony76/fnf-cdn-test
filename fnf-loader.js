@@ -292,6 +292,12 @@
         return "(noteKindCls == null ? " + noteKindFallbackName + " : noteKindCls.__name__)";
       });
 
+      // Skip optional combo-drop animation when a scripted character has no list.
+      const dropCountsPattern = /playComboDropAnimation:\s*function\(comboCount\)\s*\{\s*var dropAnim = null;\s*var _g = 0;\s*var _g1 = this\.dropNoteCounts;\s*while\(_g < _g1\.length\)\s*\{/;
+      const dropCountsGuard = 'playComboDropAnimation: function(comboCount) { if (this.dropNoteCounts == null) { console.warn("[FNF] No combo-drop animations; skipping optional animation."); return; } var dropAnim = null; var _g = 0; var _g1 = this.dropNoteCounts; while(_g < _g1.length) {';
+      const dropCountsPatched = dropCountsPattern.test(source);
+      if (dropCountsPatched) source = source.replace(dropCountsPattern, dropCountsGuard);
+
       // In this compiled build, SongRegistry.listAllDifficulties iterates a
       // collection returned by listEntryIds(). The collection is unexpectedly
       // null at runtime; make the loop treat that as an empty list so the
@@ -314,6 +320,7 @@
       if (!eventPatched) throw new Error("The SongEventRegistry class-name expression was not found; no patch was applied");
       if (!noteKindPatched) throw new Error("The NoteKindManager class-name expression was not found; no patch was applied");
       if (!difficultyLoopGuarded) throw new Error("Could not locate SongRegistry's null difficulty-list loop; no patch was applied");
+      if (!dropCountsPatched) throw new Error("Could not locate ScriptedAnimateAtlasCharacter combo-drop loop; no patch was applied");
 
       window.__fnfPatchSummary = {
         songEventGuards: eventPatched,
@@ -322,7 +329,8 @@
         remainingNoteKindClsNameReads: (source.match(/noteKindCls\\.__name__/g) || []).length,
         remainingEventGetClassNameCalls: (source.match(/Type\\.getClassName\\s*\\(\\s*eventCls\\s*\\)/g) || []).length,
         remainingNoteKindGetClassNameCalls: (source.match(/Type\\.getClassName\\s*\\(\\s*noteKindCls\\s*\\)/g) || []).length,
-        difficultyLoopGuarded: difficultyLoopGuarded
+        difficultyLoopGuarded: difficultyLoopGuarded,
+        comboDropGuarded: dropCountsPatched
       };
       console.info("[FNF patch] Applied class registry guards", window.__fnfPatchSummary);
       window.__fnfPatchedSource = source;
