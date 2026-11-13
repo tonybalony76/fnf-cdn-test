@@ -39,7 +39,25 @@
     const location = event && event.filename
       ? " (" + event.filename + (event.lineno ? ":" + event.lineno : "") + (event.colno ? ":" + event.colno : "") + ")"
       : "";
-    if (message) fail("Runtime JavaScript error: " + message + location);
+    if (message) {
+      const source = window.__fnfPatchedSource;
+      let sourceLine = "";
+      if (source && event && event.lineno > 0) {
+        let offset = 0;
+        for (let line = 1; line < event.lineno; line++) {
+          offset = source.indexOf("\\n", offset);
+          if (offset < 0) break;
+          offset++;
+        }
+        if (offset >= 0) {
+          const lineEnd = source.indexOf("\\n", offset);
+          sourceLine = source.slice(offset, lineEnd < 0 ? undefined : lineEnd).slice(0, 700);
+        }
+      }
+      if (sourceLine) console.error("[FNF generated source line " + event.lineno + "]", sourceLine);
+      if (event && event.error && event.error.stack) console.error("[FNF full error stack]", event.error.stack);
+      fail("Runtime JavaScript error: " + message + location + (sourceLine ? "\\nGenerated code: " + sourceLine : ""));
+    }
     else if (event && event.target && event.target !== window) {
       const resource = event.target.src || event.target.href || event.target.tagName || "unknown resource";
       fail("Could not load resource: " + resource);
@@ -196,6 +214,7 @@
       if (!patched) throw new Error("The expected SongEventRegistry class-name expression was not found in Funkin.js; no patch was applied");
 
       console.info("[FNF patch] Applied", patched, "SongEventRegistry null-class guard(s)");
+      window.__fnfPatchedSource = source;
       const script = document.createElement("script");
       const bundleUrl = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
       script.onload = () => {
