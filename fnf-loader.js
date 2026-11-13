@@ -25,7 +25,7 @@
     if (!el) {
       el = document.createElement("div");
       el.id = "fnf-loading";
-      el.style.cssText = "position:fixed;inset:0;display:grid;place-items:center;padding:24px;box-sizing:border-box;background:#000;color:#fff;font:16px Arial;z-index:999999;text-align:center;white-space:pre-wrap";
+      el.style.cssText = "position:fixed;inset:0;display:block;overflow:auto;padding:24px;box-sizing:border-box;background:#000;color:#fff;font:14px/1.45 monospace;z-index:999999;text-align:left;white-space:pre-wrap";
       document.body.appendChild(el);
     }
     el.textContent = "FNF could not start: " + message;
@@ -54,9 +54,15 @@
           sourceLine = source.slice(offset, lineEnd < 0 ? undefined : lineEnd).slice(0, 700);
         }
       }
+      const stack = event && event.error && event.error.stack ? String(event.error.stack).slice(0, 4200) : "(no error.stack exposed by the browser)";
+      const patchInfo = window.__fnfPatchSummary
+        ? "\nPatch checks: " + JSON.stringify(window.__fnfPatchSummary)
+        : "\nPatch checks: unavailable";
       if (sourceLine) console.error("[FNF generated source line " + event.lineno + "]", sourceLine);
-      if (event && event.error && event.error.stack) console.error("[FNF full error stack]", event.error.stack);
-      fail("Runtime JavaScript error: " + message + location + (sourceLine ? "\nGenerated code: " + sourceLine : ""));
+      console.error("[FNF full error stack]", stack);
+      fail("Runtime JavaScript error: " + message + location
+        + (sourceLine ? "\nGenerated code: " + sourceLine : "")
+        + patchInfo + "\nOriginal stack:\n" + stack);
     }
     else if (event && event.target && event.target !== window) {
       const resource = event.target.src || event.target.href || event.target.tagName || "unknown resource";
@@ -213,7 +219,12 @@
 
       if (!patched) throw new Error("The expected SongEventRegistry class-name expression was not found in Funkin.js; no patch was applied");
 
-      console.info("[FNF patch] Applied", patched, "SongEventRegistry null-class guard(s)");
+      window.__fnfPatchSummary = {
+        substitutions: patched,
+        remainingEventClsNameReads: (source.match(/eventCls\\.__name__/g) || []).length,
+        remainingGetClassNameCalls: (source.match(/Type\\.getClassName\\s*\\(\\s*eventCls\\s*\\)/g) || []).length
+      };
+      console.info("[FNF patch] Applied", patched, "SongEventRegistry null-class guard(s)", window.__fnfPatchSummary);
       window.__fnfPatchedSource = source;
       const script = document.createElement("script");
       const bundleUrl = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
