@@ -202,29 +202,44 @@
       if (!response.ok) throw new Error("Could not download Funkin.js (" + response.status + ")");
       return response.text();
     }).then(source => {
-      const fallbackName = JSON.stringify("funkin.play.event.SongEvent");
-      let patched = 0;
+      const eventFallbackName = JSON.stringify("funkin.play.event.SongEvent");
+      const noteKindFallbackName = JSON.stringify("funkin.play.notes.notekind.NoteKind");
+      let eventPatched = 0;
+      let noteKindPatched = 0;
 
-      // If the compiled class registry contains an unresolved built-in event,
-      // use the literal base-class name. Do not look the fallback up in $hxClasses:
-      // that registry entry may be the very thing that failed to resolve.
-      source = source.replace(/\bType\.getClassName\s*\(\s*eventCls\s*\)/g, match => {
-        patched++;
-        return "(eventCls == null ? " + fallbackName + " : Type.getClassName(eventCls))";
+      // ClassMacro-generated lists can contain null when a class name in the
+      // embedded metadata cannot be resolved by Haxe at runtime. Each registry
+      // skips its own base class by name, so use that literal base-class name
+      // when its class entry is null.
+      source = source.replace(/\bType\.getClassName\s*\(\s*eventCls\s*\)/g, () => {
+        eventPatched++;
+        return "(eventCls == null ? " + eventFallbackName + " : Type.getClassName(eventCls))";
       });
-      source = source.replace(/eventCls\.__name__/g, match => {
-        patched++;
-        return "(eventCls == null ? " + fallbackName + " : eventCls.__name__)";
+      source = source.replace(/eventCls\.__name__/g, () => {
+        eventPatched++;
+        return "(eventCls == null ? " + eventFallbackName + " : eventCls.__name__)";
+      });
+      source = source.replace(/\bType\.getClassName\s*\(\s*noteKindCls\s*\)/g, () => {
+        noteKindPatched++;
+        return "(noteKindCls == null ? " + noteKindFallbackName + " : Type.getClassName(noteKindCls))";
+      });
+      source = source.replace(/noteKindCls\.__name__/g, () => {
+        noteKindPatched++;
+        return "(noteKindCls == null ? " + noteKindFallbackName + " : noteKindCls.__name__)";
       });
 
-      if (!patched) throw new Error("The expected SongEventRegistry class-name expression was not found in Funkin.js; no patch was applied");
+      if (!eventPatched) throw new Error("The SongEventRegistry class-name expression was not found; no patch was applied");
+      if (!noteKindPatched) throw new Error("The NoteKindManager class-name expression was not found; no patch was applied");
 
       window.__fnfPatchSummary = {
-        substitutions: patched,
+        songEventGuards: eventPatched,
+        noteKindGuards: noteKindPatched,
         remainingEventClsNameReads: (source.match(/eventCls\\.__name__/g) || []).length,
-        remainingGetClassNameCalls: (source.match(/Type\\.getClassName\\s*\\(\\s*eventCls\\s*\\)/g) || []).length
+        remainingNoteKindClsNameReads: (source.match(/noteKindCls\\.__name__/g) || []).length,
+        remainingEventGetClassNameCalls: (source.match(/Type\\.getClassName\\s*\\(\\s*eventCls\\s*\\)/g) || []).length,
+        remainingNoteKindGetClassNameCalls: (source.match(/Type\\.getClassName\\s*\\(\\s*noteKindCls\\s*\\)/g) || []).length
       };
-      console.info("[FNF patch] Applied", patched, "SongEventRegistry null-class guard(s)", window.__fnfPatchSummary);
+      console.info("[FNF patch] Applied class registry guards", window.__fnfPatchSummary);
       window.__fnfPatchedSource = source;
       const script = document.createElement("script");
       const bundleUrl = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
