@@ -139,7 +139,17 @@
     }
     const item = window.__fnfMap.files[key];
     const base = REPO_BASES[item.repo];
-    return base ? base + key.split("/").map(encodeURIComponent).join("/") : input;
+    if (!base) return input;
+
+    const encodedPath = key.split("/").map(encodeURIComponent).join("/");
+    // Audio assets were returning HTTP 403 from the default jsDelivr edge.
+    // Keep the same pinned repository and path, but serve audio through the
+    // Fastly jsDelivr endpoint. All non-audio assets retain their known-good
+    // CDN route.
+    if (/\\.(mp3|ogg|wav|m4a|aac|flac)$/i.test(key)) {
+      return base.replace("https://cdn.jsdelivr.net/", "https://fastly.jsdelivr.net/") + encodedPath;
+    }
+    return base + encodedPath;
   }
 
   function patchProperty(proto, property) {
