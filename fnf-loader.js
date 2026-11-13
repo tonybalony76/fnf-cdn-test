@@ -45,18 +45,18 @@
       if (source && event && event.lineno > 0) {
         let offset = 0;
         for (let line = 1; line < event.lineno; line++) {
-          offset = source.indexOf("\\n", offset);
+          offset = source.indexOf("\n", offset);
           if (offset < 0) break;
           offset++;
         }
         if (offset >= 0) {
-          const lineEnd = source.indexOf("\\n", offset);
+          const lineEnd = source.indexOf("\n", offset);
           sourceLine = source.slice(offset, lineEnd < 0 ? undefined : lineEnd).slice(0, 700);
         }
       }
       if (sourceLine) console.error("[FNF generated source line " + event.lineno + "]", sourceLine);
       if (event && event.error && event.error.stack) console.error("[FNF full error stack]", event.error.stack);
-      fail("Runtime JavaScript error: " + message + location + (sourceLine ? "\\nGenerated code: " + sourceLine : ""));
+      fail("Runtime JavaScript error: " + message + location + (sourceLine ? "\nGenerated code: " + sourceLine : ""));
     }
     else if (event && event.target && event.target !== window) {
       const resource = event.target.src || event.target.href || event.target.tagName || "unknown resource";
@@ -196,19 +196,19 @@
       if (!response.ok) throw new Error("Could not download Funkin.js (" + response.status + ")");
       return response.text();
     }).then(source => {
-      const baseExpr = '$hxClasses["funkin.play.event.SongEvent"]';
+      const fallbackName = JSON.stringify("funkin.play.event.SongEvent");
       let patched = 0;
 
-      // Haxe may inline Type.getClassName(eventCls) into eventCls.__name__.
-      // If a generated built-in event entry is null, substitute the base class
-      // name at the exact dereference; registerBaseEvents skips that base class.
+      // If the compiled class registry contains an unresolved built-in event,
+      // use the literal base-class name. Do not look the fallback up in $hxClasses:
+      // that registry entry may be the very thing that failed to resolve.
       source = source.replace(/\bType\.getClassName\s*\(\s*eventCls\s*\)/g, match => {
         patched++;
-        return "Type.getClassName(eventCls || " + baseExpr + ")";
+        return "(eventCls == null ? " + fallbackName + " : Type.getClassName(eventCls))";
       });
       source = source.replace(/eventCls\.__name__/g, match => {
         patched++;
-        return "(eventCls || " + baseExpr + ").__name__";
+        return "(eventCls == null ? " + fallbackName + " : eventCls.__name__)";
       });
 
       if (!patched) throw new Error("The expected SongEventRegistry class-name expression was not found in Funkin.js; no patch was applied");
