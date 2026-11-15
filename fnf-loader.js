@@ -17,7 +17,7 @@
   const style = document.createElement("style");
   style.textContent = "html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}#openfl-content{width:100%;height:100%;background:#000}body{touch-action:none}";
   document.head.appendChild(style);
-  document.body.innerHTML = '<div id="openfl-content"></div><div id="fnf-loading" style="position:fixed;inset:0;display:grid;place-items:center;background:#000;color:#fff;font:16px Arial;z-index:99999">Loading Friday Night Funkin’…</div>';
+  document.body.innerHTML = '<div id="openfl-content"></div><div id="fnf-loading" style="position:fixed;inset:0;display:grid;place-items:center;background:#000;color:#fff;font:16px Arial;z-index:99999">Loading Friday Night Funkin’…</div><div id="fnf-asset-diagnostics" style="position:fixed;left:8px;bottom:8px;max-width:94vw;max-height:34vh;overflow:auto;padding:8px 10px;background:rgba(0,0,0,.88);color:#ffd36a;font:11px/1.35 monospace;z-index:999999;white-space:pre-wrap;pointer-events:none">FNF asset diagnostics | loader started</div>';
 
   window.addEventListener("touchmove", e => e.preventDefault(), { passive:false });
 
@@ -188,7 +188,15 @@
     return null;
   }
   function cdnUrl(input) {
-    const key = pathKey(input);
+    const rawInput = String(input);
+    const key = pathKey(rawInput);
+    window.__fnfRequestLog = window.__fnfRequestLog || [];
+    const requestRecord = rawInput + (key ? " => " + key : " => UNMAPPED");
+    if (!window.__fnfRequestLog.includes(requestRecord)) {
+      window.__fnfRequestLog.push(requestRecord);
+      if (window.__fnfRequestLog.length > 40) window.__fnfRequestLog.shift();
+      updateAssetDiagnostics();
+    }
     if (!key) {
       const raw = String(input).replace(/^\.\//, "");
       if (window.__fnfMap && !/^(data:|blob:|javascript:)/i.test(raw)) {
@@ -231,11 +239,13 @@
     }
     const missing = (window.__fnfUnmappedAssets || []).slice(0, 18);
     const failures = (window.__fnfAssetFailures || []).slice(0, 12);
+    const requests = (window.__fnfRequestLog || []).slice(-18);
     panel.textContent = "FNF asset diagnostics | mapped: " + (window.__fnfMappedAssetRequests || 0)
       + " | unresolved: " + (window.__fnfUnmappedAssets || []).length
       + " | failed: " + (window.__fnfAssetFailures || []).length
-      + (missing.length ? "\\nUNRESOLVED:\\n" + missing.join("\\n") : "")
-      + (failures.length ? "\\nFAILED:\\n" + failures.join("\\n") : "");
+      + (requests.length ? "\nREQUESTS:\n" + requests.join("\n") : "")
+      + (missing.length ? "\nUNRESOLVED:\n" + missing.join("\n") : "")
+      + (failures.length ? "\nFAILED:\n" + failures.join("\n") : "");
   }
 
   function recordAssetFailure(detail) {
