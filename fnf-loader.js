@@ -141,6 +141,12 @@
     // rewriting unrelated third-party URLs that merely share a filename.
     const isRelative = !/^[a-z][a-z0-9+.-]*:/i.test(input) && !input.startsWith("//");
     if (isRelative) {
+      // Character JSON files can reference relative shared-image paths such as
+      // "characters/SpookyKids". Resolve those against the shared image root.
+      if (p && !p.startsWith("assets/") && !p.startsWith("flixel/") && !p.startsWith("manifest/")) {
+        candidates.push("assets/shared/images/" + p);
+        if (!/\.[a-z0-9]+$/i.test(p)) candidates.push("assets/shared/images/" + p + ".png");
+      }
       const tail = p.split("/").pop();
       if (tail === "Funkin.js" || tail === "favicon.png") candidates.push(tail);
       // Stage definitions use bare image names such as "stageback".
