@@ -105,6 +105,11 @@
     rawPath = rawPath.replace(/^\.\//, "");
     while (rawPath.startsWith("../")) rawPath = rawPath.slice(3);
 
+    // If a mapped URL is passed through the resolver a second time, unwrap
+    // its pinned jsDelivr repository path instead of reporting it as unresolved.
+    const cdnMatch = rawPath.match(/^https?:\\/\\/(?:fastly\\.)?cdn\\.jsdelivr\\.net\\/gh\\/tonybalony76\\/([^/@]+)@[^/]+\\/(.+)$/i);
+    if (cdnMatch) rawPath = cdnMatch[2];
+
     let resolvedPath = rawPath;
     try {
       const base = document.baseURI || window.location.href || "https://example.invalid/";
@@ -202,6 +207,10 @@
       return input;
     }
     window.__fnfMappedAssetRequests = (window.__fnfMappedAssetRequests || 0) + 1;
+    window.__fnfMappedAssetLog = window.__fnfMappedAssetLog || [];
+    window.__fnfMappedAssetLog.push(key + " <= " + String(input));
+    if (window.__fnfMappedAssetLog.length > 24) window.__fnfMappedAssetLog.shift();
+    updateAssetDiagnostics();
     return rewriteMappedAsset(key, input);
   }
 
@@ -231,9 +240,11 @@
     }
     const missing = (window.__fnfUnmappedAssets || []).slice(0, 18);
     const failures = (window.__fnfAssetFailures || []).slice(0, 12);
+    const recent = (window.__fnfMappedAssetLog || []).slice(-12);
     panel.textContent = "FNF asset diagnostics | mapped: " + (window.__fnfMappedAssetRequests || 0)
       + " | unresolved: " + (window.__fnfUnmappedAssets || []).length
       + " | failed: " + (window.__fnfAssetFailures || []).length
+      + (recent.length ? "\\nRECENT MAPPED ASSETS:\\n" + recent.join("\\n") : "")
       + (missing.length ? "\\nUNRESOLVED:\\n" + missing.join("\\n") : "")
       + (failures.length ? "\\nFAILED:\\n" + failures.join("\\n") : "");
   }
