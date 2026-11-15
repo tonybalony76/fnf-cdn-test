@@ -192,10 +192,14 @@
     const rawInput = String(input);
     const key = pathKey(rawInput);
     window.__fnfRequestLog = window.__fnfRequestLog || [];
+    window.__fnfRequestSeen = window.__fnfRequestSeen || new Set();
+    window.__fnfTotalRequestCalls = (window.__fnfTotalRequestCalls || 0) + 1;
     const requestRecord = rawInput + (key ? " => " + key : " => UNMAPPED");
-    if (!window.__fnfRequestLog.includes(requestRecord)) {
-      window.__fnfRequestLog.push(requestRecord);
-      if (window.__fnfRequestLog.length > 40) window.__fnfRequestLog.shift();
+    if (!window.__fnfRequestSeen.has(requestRecord)) {
+      window.__fnfRequestSeen.add(requestRecord);
+      // Keep a much larger unique-path sample for F8 diagnostics. The on-screen
+      // panel still shows only the most recent 18 entries to stay readable.
+      if (window.__fnfRequestLog.length < 2500) window.__fnfRequestLog.push(requestRecord);
       updateAssetDiagnostics();
     }
     if (!key) {
@@ -242,6 +246,7 @@
     const failures = (window.__fnfAssetFailures || []).slice(0, 12);
     const requests = (window.__fnfRequestLog || []).slice(-18);
     panel.textContent = "FNF asset diagnostics | mapped: " + (window.__fnfMappedAssetRequests || 0)
+      + " | unique: " + (window.__fnfRequestLog || []).length
       + " | unresolved: " + (window.__fnfUnmappedAssets || []).length
       + " | failed: " + (window.__fnfAssetFailures || []).length
       + (requests.length ? "\nREQUESTS:\n" + requests.join("\n") : "")
@@ -258,6 +263,8 @@
       capturedAt: new Date().toISOString(),
       page: window.location.href,
       mappedRequests: window.__fnfMappedAssetRequests || 0,
+      totalRequestCalls: window.__fnfTotalRequestCalls || 0,
+      uniqueRequestCount: (window.__fnfRequestLog || []).length,
       requests: window.__fnfRequestLog || [],
       unresolved: window.__fnfUnmappedAssets || [],
       failures: window.__fnfAssetFailures || [],
