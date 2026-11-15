@@ -129,6 +129,26 @@
       } else {
         candidates.push("assets/" + library + "/" + libraryPath);
       }
+
+      // Stage and character definitions store atlas names without file names.
+      // Resolve those names to the actual packaged atlas metadata and texture.
+      if (!/\\.[a-z0-9]+$/i.test(libraryPath)) {
+        if (library === "shared") {
+          candidates.push(
+            "assets/shared/images/" + libraryPath + "/Animation.json",
+            "assets/shared/images/" + libraryPath + "/spritemap1.json",
+            "assets/shared/images/" + libraryPath + "/spritemap1.png",
+            "assets/shared/images/" + libraryPath + ".png"
+          );
+        } else {
+          candidates.push(
+            "assets/" + library + "/images/" + libraryPath + "/Animation.json",
+            "assets/" + library + "/images/" + libraryPath + "/spritemap1.json",
+            "assets/" + library + "/images/" + libraryPath + "/spritemap1.png",
+            "assets/shared/images/" + libraryPath + ".png"
+          );
+        }
+      }
     }
 
     // Preserve paths already rooted inside the packaged game.
