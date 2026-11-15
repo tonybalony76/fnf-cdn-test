@@ -138,6 +138,12 @@
     if (isRelative) {
       const tail = p.split("/").pop();
       if (tail === "Funkin.js" || tail === "favicon.png") candidates.push(tail);
+      // Stage definitions use bare image names such as "stageback".
+      // Resolve them only when the shared-image file is present in the map.
+      if (tail && !tail.includes("/") && !/\\.[a-z0-9]+$/i.test(tail)) {
+        candidates.push("assets/shared/images/" + tail + ".png");
+        candidates.push("assets/shared/images/" + tail);
+      }
     }
 
     for (const c of candidates) {
