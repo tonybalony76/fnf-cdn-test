@@ -80,6 +80,13 @@
       fail("Could not load resource: " + resource);
     }
   }, true);
+  window.addEventListener("error", event => {
+    if (event && event.target && event.target !== window) {
+      const failedUrl = event.target.src || event.target.href || event.target.poster;
+      if (failedUrl) recordAssetFailure("RESOURCE " + failedUrl);
+    }
+  }, true);
+
   window.addEventListener("unhandledrejection", event => {
     const reason = event && event.reason;
     const message = reason && reason.message ? reason.message : String(reason);
@@ -184,15 +191,24 @@
     const key = pathKey(input);
     if (!key) {
       const raw = String(input).replace(/^\.\//, "");
-      if (/^(assets|flixel)\//.test(raw) && window.__fnfMap) {
+      if (window.__fnfMap && !/^(data:|blob:|javascript:)/i.test(raw)) {
         window.__fnfUnmappedAssets = window.__fnfUnmappedAssets || [];
         if (!window.__fnfUnmappedAssets.includes(raw)) {
           window.__fnfUnmappedAssets.push(raw);
           console.warn("[FNF unmapped asset path]", raw);
+          updateAssetDiagnostics();
         }
       }
       return input;
     }
+    window.__fnfMappedAssetRequests = (window.__fnfMappedAssetRequests || 0) + 1;
+    return rewriteMappedAsset(key, input);
+  }
+
+  function rewriteMappedAsset(key, input) {
+    const item = window.__fnfMap.files[key];
+    const base = REPO_BASES[item.repo];
+    if (!base) return input;
     const item = window.__fnfMap.files[key];
     const base = REPO_BASES[item.repo];
     if (!base) return input;
@@ -206,6 +222,29 @@
       return base.replace("https://cdn.jsdelivr.net/", "https://fastly.jsdelivr.net/") + encodedPath;
     }
     return base + encodedPath;
+  }
+
+  function updateAssetDiagnostics() {
+    let panel = document.getElementById("fnf-asset-diagnostics");
+    if (!panel) {
+      panel = document.createElement("div");
+      panel.id = "fnf-asset-diagnostics";
+      panel.style.cssText = "position:fixed;left:8px;bottom:8px;max-width:min(94vw,760px);max-height:32vh;overflow:auto;padding:8px 10px;background:rgba(0,0,0,.88);color:#ffd36a;font:11px/1.35 monospace;z-index:999999;white-space:pre-wrap;pointer-events:none";
+      document.body.appendChild(panel);
+    }
+    const missing = (window.__fnfUnmappedAssets || []).slice(0, 18);
+    const failures = (window.__fnfAssetFailures || []).slice(0, 12);
+    panel.textContent = "FNF asset diagnostics | mapped: " + (window.__fnfMappedAssetRequests || 0)
+      + " | unresolved: " + (window.__fnfUnmappedAssets || []).length
+      + " | failed: " + (window.__fnfAssetFailures || []).length
+      + (missing.length ? "\\nUNRESOLVED:\\n" + missing.join("\\n") : "")
+      + (failures.length ? "\\nFAILED:\\n" + failures.join("\\n") : "");
+  }
+
+  function recordAssetFailure(detail) {
+    window.__fnfAssetFailures = window.__fnfAssetFailures || [];
+    if (!window.__fnfAssetFailures.includes(detail)) window.__fnfAssetFailures.push(detail);
+    updateAssetDiagnostics();
   }
 
   function patchProperty(proto, property) {
@@ -237,11 +276,13 @@
     const rewrittenUrl = cdnUrl(requestedUrl);
     this.addEventListener("error", () => {
       console.error("[FNF XHR network/CORS failure]", method, rewrittenUrl);
+      recordAssetFailure("XHR " + method + " " + rewrittenUrl);
       fail("Asset network/CORS request failed: " + rewrittenUrl);
     }, { once:true });
     this.addEventListener("loadend", () => {
       if (this.status >= 400) {
         console.error("[FNF XHR HTTP failure]", this.status, method, rewrittenUrl);
+        recordAssetFailure("HTTP " + this.status + " " + rewrittenUrl);
         fail("Asset request returned HTTP " + this.status + ": " + rewrittenUrl);
       }
     }, { once:true });
