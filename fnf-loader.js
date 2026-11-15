@@ -90,68 +90,66 @@
     if (typeof input !== "string") return null;
     if (/^(data:|blob:|javascript:)/i.test(input)) return null;
 
-    // Google Sites may run custom embeds in a sandboxed iframe whose origin is
-    // opaque ("null"). document.baseURI can still point to the Sites page, so
-    // comparing URL.origin with location.origin incorrectly rejects relative
-    // game assets. Resolve when possible, and fall back to the raw path when
-    // the iframe uses an about:srcdoc base URL.
-    let p;
+    // Keep the original request path separate from URL resolution. In Google
+    // Sites' opaque iframe, URL("characters/SpookyKids", document.baseURI)
+    // can incorrectly prepend the host page's path to the asset name.
+    let rawPath = input.split(/[?#]/, 1)[0];
+    try { rawPath = decodeURIComponent(rawPath); } catch (_) {}
+    rawPath = rawPath.replace(/^\.\//, "");
+    while (rawPath.startsWith("../")) rawPath = rawPath.slice(3);
+
+    let resolvedPath = rawPath;
     try {
       const base = document.baseURI || window.location.href || "https://example.invalid/";
-      p = new URL(input, base).pathname;
-    } catch (_) {
-      p = input.split(/[?#]/, 1)[0];
-    }
+      resolvedPath = new URL(input, base).pathname;
+    } catch (_) {}
+    try { resolvedPath = decodeURIComponent(resolvedPath); } catch (_) {}
+    while (resolvedPath.startsWith("/")) resolvedPath = resolvedPath.slice(1);
 
-    try { p = decodeURIComponent(p); } catch (_) {}
-    while (p.startsWith("/")) p = p.slice(1);
-    const candidates = [p];
+    const candidates = [rawPath, resolvedPath];
 
-    // Resolve FNF library-qualified asset paths without treating the library
-    // prefix as a URL scheme. "shared:characters/bf" is relative to the
-    // shared images directory; "shared:images/..." already includes images/.
-    const libraryMatch = input.match(/^([a-z][a-z0-9+.-]*):(.+)$/i);
+    // FNF library-qualified paths, including shared and week-specific folders.
+    const libraryMatch = rawPath.match(/^([a-z][a-z0-9+.-]*):(.+)$/i);
     if (libraryMatch) {
       const library = libraryMatch[1].toLowerCase();
-      let libraryPath = libraryMatch[2];
-      while (libraryPath.startsWith("/")) libraryPath = libraryPath.slice(1);
+      let libraryPath = libraryMatch[2].replace(/^\/+/, "");
       if (library === "shared") {
-        if (libraryPath.startsWith("images/")) {
-          candidates.push("assets/shared/" + libraryPath);
-        } else {
-          candidates.push("assets/shared/images/" + libraryPath);
-        }
+        candidates.push(libraryPath.startsWith("images/")
+          ? "assets/shared/" + libraryPath
+          : "assets/shared/images/" + libraryPath);
       } else if (library === "preload") {
-        candidates.push("assets/" + libraryPath);
-        candidates.push("assets/preload/" + libraryPath);
+        candidates.push("assets/" + libraryPath, "assets/preload/" + libraryPath);
       } else {
-        // Song and stage assets use libraries such as week1:, week2:,
-        // week3:, weekend1:, and sserafim:. Map those prefixes to their
-        // corresponding asset folders (e.g. week2:images/foo -> assets/week2/images/foo).
         candidates.push("assets/" + library + "/" + libraryPath);
       }
     }
 
-    for (const marker of ["assets/", "flixel/", "manifest/"]) {
-      const at = p.lastIndexOf(marker);
-      if (at >= 0) candidates.push(p.slice(at));
+    // Preserve paths already rooted inside the packaged game.
+    for (const path of [rawPath, resolvedPath]) {
+      for (const marker of ["assets/", "flixel/", "manifest/"]) {
+        const at = path.lastIndexOf(marker);
+        if (at >= 0) candidates.push(path.slice(at));
+      }
     }
 
-    // Only use a basename fallback for relative requests. This avoids
-    // rewriting unrelated third-party URLs that merely share a filename.
-    const isRelative = !/^[a-z][a-z0-9+.-]*:/i.test(input) && !input.startsWith("//");
+    const isRelative = !/^[a-z][a-z0-9+.-]*:/i.test(rawPath) && !rawPath.startsWith("//");
     if (isRelative) {
-      // Character JSON files can reference relative shared-image paths such as
-      // "characters/SpookyKids". Resolve those against the shared image root.
-      if (p && !p.startsWith("assets/") && !p.startsWith("flixel/") && !p.startsWith("manifest/")) {
-        candidates.push("assets/shared/images/" + p);
-        if (!/\.[a-z0-9]+$/i.test(p)) candidates.push("assets/shared/images/" + p + ".png");
+      // Character definitions commonly use "characters/Name" while stage
+      // and atlas data may use "images/..." or a bare image name.
+      if (rawPath && !rawPath.startsWith("assets/") &&
+          !rawPath.startsWith("flixel/") && !rawPath.startsWith("manifest/")) {
+        candidates.push("assets/shared/images/" + rawPath);
+        if (!/\.[a-z0-9]+$/i.test(rawPath)) {
+          candidates.push("assets/shared/images/" + rawPath + ".png");
+        }
+        if (rawPath.startsWith("images/")) {
+          candidates.push("assets/shared/" + rawPath);
+        }
       }
-      const tail = p.split("/").pop();
+
+      const tail = rawPath.split("/").pop();
       if (tail === "Funkin.js" || tail === "favicon.png") candidates.push(tail);
-      // Stage definitions use bare image names such as "stageback".
-      // Resolve them only when the shared-image file is present in the map.
-      if (tail && !tail.includes("/") && !/\\.[a-z0-9]+$/i.test(tail)) {
+      if (tail && !tail.includes("/") && !/\.[a-z0-9]+$/i.test(tail)) {
         candidates.push("assets/shared/images/" + tail + ".png");
         candidates.push("assets/shared/images/" + tail);
       }
@@ -159,17 +157,11 @@
 
     const files = window.__fnfMap && window.__fnfMap.files;
     if (!files) return null;
-
-    // Prefer exact mapped paths first.
-    for (const c of candidates) {
-      if (files[c]) return c;
+    for (const candidate of candidates) {
+      if (files[candidate]) return candidate;
     }
 
-    // Different parts of FNF request the same asset using different roots:
-    // for example "images/halloween_bg/spritemap1.png",
-    // "characters/SpookyKids.png", or a path with a library prefix.
-    // Build a suffix index once and use it only when the suffix identifies
-    // exactly one file, avoiding guesses when filenames are duplicated.
+    // Use a suffix only when it maps to one unique packaged asset.
     if (!window.__fnfUniqueAssetSuffixes) {
       const suffixes = Object.create(null);
       for (const key of Object.keys(files)) {
@@ -182,14 +174,12 @@
       }
       window.__fnfUniqueAssetSuffixes = suffixes;
     }
-
-    for (const c of candidates) {
-      const suffix = window.__fnfUniqueAssetSuffixes[c];
-      if (suffix && files[suffix]) return suffix;
+    for (const candidate of candidates) {
+      const match = window.__fnfUniqueAssetSuffixes[candidate];
+      if (match && files[match]) return match;
     }
     return null;
   }
-
   function cdnUrl(input) {
     const key = pathKey(input);
     if (!key) {
