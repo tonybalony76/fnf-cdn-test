@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const MAP_URL = "https://cdn.jsdelivr.net/gh/tonybalony76/fnf@c2c29047ba807b6513cee4a1147ce9079dbe8aa6/fnf-file-map.json";
+  const MAP_URL = "https://cdn.jsdelivr.net/gh/tonybalony76/fnf@main/fnf-file-map.json";
   const REPO_BASES = {
     "eme-hbnf-01": "https://cdn.jsdelivr.net/gh/tonybalony76/eme-hbnf-01@848faf40bb4492334f54d4cec5223719c29d2977/",
     "eme-hbnf-02": "https://cdn.jsdelivr.net/gh/tonybalony76/eme-hbnf-02@2994749075a761709a18fbe1635dd900e1be621f/",
