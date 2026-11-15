@@ -17,8 +17,7 @@
   const style = document.createElement("style");
   style.textContent = "html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}#openfl-content{width:100%;height:100%;background:#000}body{touch-action:none}";
   document.head.appendChild(style);
-  document.body.innerHTML = '<div id="openfl-content"></div><div id="fnf-loading" style="position:fixed;inset:0;display:grid;place-items:center;background:#000;color:#fff;font:16px Arial;z-index:99999">Loading Friday Night Funkin’…</div><div id="fnf-asset-diagnostics" style="position:fixed;left:8px;bottom:8px;max-width:94vw;max-height:32vh;overflow:auto;padding:8px 10px;background:rgba(0,0,0,.88);color:#ffd36a;font:11px/1.35 monospace;z-index:100000;white-space:pre-wrap;pointer-events:none">FNF asset diagnostics | loader started</div>';
-  window.__fnfDiagnosticStatus = "Starting asset-map request";
+  document.body.innerHTML = '<div id="openfl-content"></div><div id="fnf-loading" style="position:fixed;inset:0;display:grid;place-items:center;background:#000;color:#fff;font:16px Arial;z-index:99999">Loading Friday Night Funkin’…</div>';
 
   window.addEventListener("touchmove", e => e.preventDefault(), { passive:false });
 
@@ -130,25 +129,6 @@
       } else {
         candidates.push("assets/" + library + "/" + libraryPath);
       }
-
-      // Atlas asset paths may name only the atlas folder (for example,
-      // shared:characters/bf or week2:halloween_bg). Resolve that folder
-      // to the metadata and texture files actually present in the file map.
-      if (!/\\.[a-z0-9]+$/i.test(libraryPath)) {
-        const imageRoot = library === "shared"
-          ? "assets/shared/images/"
-          : "assets/" + library + "/images/";
-        candidates.push(
-          imageRoot + libraryPath + "/Animation.json",
-          imageRoot + libraryPath + "/spritemap1.json",
-          imageRoot + libraryPath + "/spritemap1.png"
-        );
-        if (library !== "shared") {
-          candidates.push("assets/shared/images/" + libraryPath + ".png");
-        } else {
-          candidates.push(imageRoot + libraryPath + ".png");
-        }
-      }
     }
 
     // Preserve paths already rooted inside the packaged game.
@@ -211,7 +191,6 @@
     const key = pathKey(input);
     if (!key) {
       const raw = String(input).replace(/^\.\//, "");
-      if (/\/Funkin\.js(?:[?#]|$)/i.test(raw)) return input;
       if (window.__fnfMap && !/^(data:|blob:|javascript:)/i.test(raw)) {
         window.__fnfUnmappedAssets = window.__fnfUnmappedAssets || [];
         if (!window.__fnfUnmappedAssets.includes(raw)) {
@@ -223,8 +202,6 @@
       return input;
     }
     window.__fnfMappedAssetRequests = (window.__fnfMappedAssetRequests || 0) + 1;
-    window.__fnfMappedAssetPaths = window.__fnfMappedAssetPaths || [];
-    if (!window.__fnfMappedAssetPaths.includes(key)) window.__fnfMappedAssetPaths.push(key);
     return rewriteMappedAsset(key, input);
   }
 
@@ -254,12 +231,9 @@
     }
     const missing = (window.__fnfUnmappedAssets || []).slice(0, 18);
     const failures = (window.__fnfAssetFailures || []).slice(0, 12);
-    const mappedPaths = (window.__fnfMappedAssetPaths || []).slice(0, 32);
-    panel.textContent = "FNF asset diagnostics | " + (window.__fnfDiagnosticStatus || "running")
-      + "\\nMapped: " + (window.__fnfMappedAssetRequests || 0)
+    panel.textContent = "FNF asset diagnostics | mapped: " + (window.__fnfMappedAssetRequests || 0)
       + " | unresolved: " + (window.__fnfUnmappedAssets || []).length
       + " | failed: " + (window.__fnfAssetFailures || []).length
-      + (mappedPaths.length ? "\\nMAPPED PATHS:\\n" + mappedPaths.join("\\n") : "")
       + (missing.length ? "\\nUNRESOLVED:\\n" + missing.join("\\n") : "")
       + (failures.length ? "\\nFAILED:\\n" + failures.join("\\n") : "");
   }
@@ -367,16 +341,11 @@
     ["Monsterrat","flixel/fonts/monsterrat.ttf"]
   ];
 
-  updateAssetDiagnostics();
   fetch(MAP_URL).then(r => {
-    window.__fnfDiagnosticStatus = "Asset-map response: HTTP " + r.status;
-    updateAssetDiagnostics();
     if (!r.ok) throw new Error("Could not download the file map (" + r.status + ")");
     return r.json();
   }).then(map => {
     window.__fnfMap = map;
-    window.__fnfDiagnosticStatus = "Asset map loaded (" + Object.keys(map.files || {}).length + " files); downloading game bundle";
-    updateAssetDiagnostics();
     const fontCss = fonts.map(([name,path]) =>
       "@font-face{font-family:'" + name + "';src:url('" + cdnUrl(path) + "') format('" + (path.endsWith(".otf") ? "opentype" : "truetype") + "')}"
     ).join("\n");
@@ -388,8 +357,6 @@
     // dereference before executing it. The previous resolver hook ran too late
     // / against a symbol that is not exposed outside the compiled bundle.
     fetch(cdnUrl("Funkin.js"), { mode: "cors" }).then(response => {
-      window.__fnfDiagnosticStatus = "Game bundle response: HTTP " + response.status;
-      updateAssetDiagnostics();
       if (!response.ok) throw new Error("Could not download Funkin.js (" + response.status + ")");
       return response.text();
     }).then(source => {
@@ -471,8 +438,6 @@
           window.__fnfPatchSummary.difficultyRegistryGuarded = window.__fnfPatchSummary.difficultyLoopGuarded;
           if (!window.lime || typeof window.lime.embed !== "function") throw new Error("Funkin.js loaded, but the Lime game engine did not initialize");
           window.lime.embed("Funkin", "openfl-content", 1280, 720, { parameters:{} });
-          window.__fnfDiagnosticStatus = "Game engine started; waiting for gameplay asset requests";
-          updateAssetDiagnostics();
           const loading = document.getElementById("fnf-loading");
           if (loading) loading.remove();
         } catch (e) { fail(e.message || String(e)); }
