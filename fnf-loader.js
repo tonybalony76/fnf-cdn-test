@@ -119,35 +119,38 @@
     const libraryMatch = rawPath.match(/^([a-z][a-z0-9+.-]*):(.+)$/i);
     if (libraryMatch) {
       const library = libraryMatch[1].toLowerCase();
-      let libraryPath = libraryMatch[2].replace(/^\/+/, "");
-      if (library === "shared") {
-        candidates.push(libraryPath.startsWith("images/")
+      let libraryPath = libraryMatch[2].replace(/^\\/+/, "");
+      let atlasRoot = null;
+
+      // Lime/OpenFL can pass a fully-qualified library path such as
+      // shared:assets/shared/images/characters/bf. Keep that canonical path
+      // intact; adding another assets/<library>/images prefix breaks lookup.
+      if (libraryPath.startsWith("assets/" + library + "/")) {
+        atlasRoot = libraryPath;
+        candidates.push(libraryPath);
+      } else if (library === "shared") {
+        atlasRoot = libraryPath.startsWith("images/")
           ? "assets/shared/" + libraryPath
-          : "assets/shared/images/" + libraryPath);
+          : "assets/shared/images/" + libraryPath;
+        candidates.push(atlasRoot);
       } else if (library === "preload") {
         candidates.push("assets/" + libraryPath, "assets/preload/" + libraryPath);
+        if (libraryPath.startsWith("images/")) atlasRoot = "assets/" + libraryPath;
       } else {
-        candidates.push("assets/" + library + "/" + libraryPath);
+        atlasRoot = libraryPath.startsWith("images/")
+          ? "assets/" + library + "/" + libraryPath
+          : "assets/" + library + "/images/" + libraryPath;
+        candidates.push("assets/" + library + "/" + libraryPath, atlasRoot);
       }
 
-      // Stage and character definitions store atlas names without file names.
-      // Resolve those names to the actual packaged atlas metadata and texture.
-      if (!/\\.[a-z0-9]+$/i.test(libraryPath)) {
-        if (library === "shared") {
-          candidates.push(
-            "assets/shared/images/" + libraryPath + "/Animation.json",
-            "assets/shared/images/" + libraryPath + "/spritemap1.json",
-            "assets/shared/images/" + libraryPath + "/spritemap1.png",
-            "assets/shared/images/" + libraryPath + ".png"
-          );
-        } else {
-          candidates.push(
-            "assets/" + library + "/images/" + libraryPath + "/Animation.json",
-            "assets/" + library + "/images/" + libraryPath + "/spritemap1.json",
-            "assets/" + library + "/images/" + libraryPath + "/spritemap1.png",
-            "assets/shared/images/" + libraryPath + ".png"
-          );
-        }
+      // AnimateAtlas asks for Animation.json and its sprite maps under this
+      // exact root. Resolve the metadata and texture files as separate entries.
+      if (atlasRoot && !/\\.[a-z0-9]+$/i.test(libraryPath)) {
+        candidates.push(
+          atlasRoot + "/Animation.json",
+          atlasRoot + "/spritemap1.json",
+          atlasRoot + "/spritemap1.png"
+        );
       }
     }
 
