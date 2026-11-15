@@ -106,6 +106,28 @@
     try { p = decodeURIComponent(p); } catch (_) {}
     while (p.startsWith("/")) p = p.slice(1);
     const candidates = [p];
+
+    // FNF/OpenFL asset libraries can emit library-qualified paths such as
+    // shared:characters/bf/spritemap1.png. URL() treats "shared:" as a URL
+    // scheme, which removes that library name from pathname. Restore the
+    // library prefix and map it to the actual shared image directory.
+    const libraryMatch = input.match(/^([a-z][a-z0-9+.-]*):(.+)$/i);
+    if (libraryMatch) {
+      const library = libraryMatch[1].toLowerCase();
+      const libraryPath = libraryMatch[2].replace(/^\\/+/, "");
+      if (library === "shared") {
+        if (libraryPath.startsWith("images/")) {
+          candidates.push("assets/shared/" + libraryPath);
+        } else {
+          candidates.push("assets/shared/images/" + libraryPath);
+          candidates.push("assets/shared/" + libraryPath);
+        }
+      } else if (library === "preload") {
+        candidates.push("assets/" + libraryPath);
+        candidates.push("assets/preload/" + libraryPath);
+      }
+    }
+
     for (const marker of ["assets/", "flixel/", "manifest/"]) {
       const at = p.lastIndexOf(marker);
       if (at >= 0) candidates.push(p.slice(at));
