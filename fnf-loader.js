@@ -124,6 +124,11 @@
       } else if (library === "preload") {
         candidates.push("assets/" + libraryPath);
         candidates.push("assets/preload/" + libraryPath);
+      } else {
+        // Song and stage assets use libraries such as week1:, week2:,
+        // week3:, weekend1:, and sserafim:. Map those prefixes to their
+        // corresponding asset folders (e.g. week2:images/foo -> assets/week2/images/foo).
+        candidates.push("assets/" + library + "/" + libraryPath);
       }
     }
 
