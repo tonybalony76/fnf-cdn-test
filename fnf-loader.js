@@ -129,6 +129,25 @@
       } else {
         candidates.push("assets/" + library + "/" + libraryPath);
       }
+
+      // Atlas asset paths may name only the atlas folder (for example,
+      // shared:characters/bf or week2:halloween_bg). Resolve that folder
+      // to the metadata and texture files actually present in the file map.
+      if (!/\\.[a-z0-9]+$/i.test(libraryPath)) {
+        const imageRoot = library === "shared"
+          ? "assets/shared/images/"
+          : "assets/" + library + "/images/";
+        candidates.push(
+          imageRoot + libraryPath + "/Animation.json",
+          imageRoot + libraryPath + "/spritemap1.json",
+          imageRoot + libraryPath + "/spritemap1.png"
+        );
+        if (library !== "shared") {
+          candidates.push("assets/shared/images/" + libraryPath + ".png");
+        } else {
+          candidates.push(imageRoot + libraryPath + ".png");
+        }
+      }
     }
 
     // Preserve paths already rooted inside the packaged game.
