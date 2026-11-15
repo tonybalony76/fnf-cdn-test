@@ -106,6 +106,27 @@
     try { p = decodeURIComponent(p); } catch (_) {}
     while (p.startsWith("/")) p = p.slice(1);
     const candidates = [p];
+
+    // Resolve FNF library-qualified asset paths without treating the library
+    // prefix as a URL scheme. "shared:characters/bf" is relative to the
+    // shared images directory; "shared:images/..." already includes images/.
+    const libraryMatch = input.match(/^([a-z][a-z0-9+.-]*):(.+)$/i);
+    if (libraryMatch) {
+      const library = libraryMatch[1].toLowerCase();
+      let libraryPath = libraryMatch[2];
+      while (libraryPath.startsWith("/")) libraryPath = libraryPath.slice(1);
+      if (library === "shared") {
+        if (libraryPath.startsWith("images/")) {
+          candidates.push("assets/shared/" + libraryPath);
+        } else {
+          candidates.push("assets/shared/images/" + libraryPath);
+        }
+      } else if (library === "preload") {
+        candidates.push("assets/" + libraryPath);
+        candidates.push("assets/preload/" + libraryPath);
+      }
+    }
+
     for (const marker of ["assets/", "flixel/", "manifest/"]) {
       const at = p.lastIndexOf(marker);
       if (at >= 0) candidates.push(p.slice(at));
