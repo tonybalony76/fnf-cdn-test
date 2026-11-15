@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const MAP_URL = "https://cdn.jsdelivr.net/gh/tonybalony76/fnf@main/fnf-file-map.json";
+  const MAP_URL = "https://cdn.jsdelivr.net/gh/tonybalony76/fnf-cdn-test@main/fnf-file-map.json";
   const REPO_BASES = {
     "eme-hbnf-01": "https://cdn.jsdelivr.net/gh/tonybalony76/eme-hbnf-01@848faf40bb4492334f54d4cec5223719c29d2977/",
     "eme-hbnf-02": "https://cdn.jsdelivr.net/gh/tonybalony76/eme-hbnf-02@2994749075a761709a18fbe1635dd900e1be621f/",
@@ -11,7 +11,7 @@
     "eme-hbnf-06": "https://cdn.jsdelivr.net/gh/tonybalony76/eme-hbnf-06@9b96d1309f9dafc0f5c7096e15e83070129f0577/",
     "eme-hbnf-07": "https://cdn.jsdelivr.net/gh/tonybalony76/eme-hbnf-07@ccf6cfdb9aec2ab9d5489e2bf4411847f2fcf6fd/",
     "eme-hbnf-08": "https://cdn.jsdelivr.net/gh/tonybalony76/eme-hbnf-08@0b4959dd664204500607abc40af569c01ac56f26/",
-    "fnf": "https://cdn.jsdelivr.net/gh/tonybalony76/fnf@6c9371817c4a17fa64f9d665af5543d00120b933/"
+    "fnf": "https://cdn.jsdelivr.net/gh/tonybalony76/eme-hbnf-08@0b4959dd664204500607abc40af569c01ac56f26/"
   };
 
   const style = document.createElement("style");
