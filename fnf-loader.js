@@ -22,6 +22,7 @@
   window.addEventListener("touchmove", e => e.preventDefault(), { passive:false });
 
   function fail(message) {
+    window.__fnfLastError = String(message);
     let el = document.getElementById("fnf-loading");
     if (!el) {
       el = document.createElement("div");
@@ -247,6 +248,34 @@
       + (missing.length ? "\nUNRESOLVED:\n" + missing.join("\n") : "")
       + (failures.length ? "\nFAILED:\n" + failures.join("\n") : "");
   }
+
+  // Press F8 at any time to download diagnostics without using the mouse.
+  // This is useful when the game captures/hides the pointer and text cannot be selected.
+  window.addEventListener("keydown", event => {
+    if (event.key !== "F8") return;
+    event.preventDefault();
+    const report = {
+      capturedAt: new Date().toISOString(),
+      page: window.location.href,
+      mappedRequests: window.__fnfMappedAssetRequests || 0,
+      requests: window.__fnfRequestLog || [],
+      unresolved: window.__fnfUnmappedAssets || [],
+      failures: window.__fnfAssetFailures || [],
+      patchSummary: window.__fnfPatchSummary || null,
+      lastError: window.__fnfLastError || null
+    };
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "fnf-diagnostics.json";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    const panel = document.getElementById("fnf-asset-diagnostics");
+    if (panel) panel.textContent += "\nDiagnostics downloaded: fnf-diagnostics.json";
+  });
 
   function recordAssetFailure(detail) {
     window.__fnfAssetFailures = window.__fnfAssetFailures || [];
