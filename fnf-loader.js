@@ -157,8 +157,35 @@
       }
     }
 
+    const files = window.__fnfMap && window.__fnfMap.files;
+    if (!files) return null;
+
+    // Prefer exact mapped paths first.
     for (const c of candidates) {
-      if (window.__fnfMap && window.__fnfMap.files[c]) return c;
+      if (files[c]) return c;
+    }
+
+    // Different parts of FNF request the same asset using different roots:
+    // for example "images/halloween_bg/spritemap1.png",
+    // "characters/SpookyKids.png", or a path with a library prefix.
+    // Build a suffix index once and use it only when the suffix identifies
+    // exactly one file, avoiding guesses when filenames are duplicated.
+    if (!window.__fnfUniqueAssetSuffixes) {
+      const suffixes = Object.create(null);
+      for (const key of Object.keys(files)) {
+        const parts = key.split("/");
+        for (let i = 1; i < parts.length; i++) {
+          const suffix = parts.slice(i).join("/");
+          if (!(suffix in suffixes)) suffixes[suffix] = key;
+          else if (suffixes[suffix] !== key) suffixes[suffix] = null;
+        }
+      }
+      window.__fnfUniqueAssetSuffixes = suffixes;
+    }
+
+    for (const c of candidates) {
+      const suffix = window.__fnfUniqueAssetSuffixes[c];
+      if (suffix && files[suffix]) return suffix;
     }
     return null;
   }
