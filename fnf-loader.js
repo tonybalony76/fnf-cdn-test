@@ -209,9 +209,6 @@
     const item = window.__fnfMap.files[key];
     const base = REPO_BASES[item.repo];
     if (!base) return input;
-    const item = window.__fnfMap.files[key];
-    const base = REPO_BASES[item.repo];
-    if (!base) return input;
 
     const encodedPath = key.split("/").map(encodeURIComponent).join("/");
     // Use jsDelivr's alternate Fastly edge for media files. The default
