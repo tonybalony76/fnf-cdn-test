@@ -210,6 +210,7 @@
     const key = pathKey(input);
     if (!key) {
       const raw = String(input).replace(/^\.\//, "");
+      if (/\/Funkin\.js(?:[?#]|$)/i.test(raw)) return input;
       if (window.__fnfMap && !/^(data:|blob:|javascript:)/i.test(raw)) {
         window.__fnfUnmappedAssets = window.__fnfUnmappedAssets || [];
         if (!window.__fnfUnmappedAssets.includes(raw)) {
@@ -221,6 +222,8 @@
       return input;
     }
     window.__fnfMappedAssetRequests = (window.__fnfMappedAssetRequests || 0) + 1;
+    window.__fnfMappedAssetPaths = window.__fnfMappedAssetPaths || [];
+    if (!window.__fnfMappedAssetPaths.includes(key)) window.__fnfMappedAssetPaths.push(key);
     return rewriteMappedAsset(key, input);
   }
 
@@ -250,9 +253,11 @@
     }
     const missing = (window.__fnfUnmappedAssets || []).slice(0, 18);
     const failures = (window.__fnfAssetFailures || []).slice(0, 12);
+    const mappedPaths = (window.__fnfMappedAssetPaths || []).slice(0, 32);
     panel.textContent = "FNF asset diagnostics | mapped: " + (window.__fnfMappedAssetRequests || 0)
       + " | unresolved: " + (window.__fnfUnmappedAssets || []).length
       + " | failed: " + (window.__fnfAssetFailures || []).length
+      + (mappedPaths.length ? "\\nMAPPED PATHS:\\n" + mappedPaths.join("\\n") : "")
       + (missing.length ? "\\nUNRESOLVED:\\n" + missing.join("\\n") : "")
       + (failures.length ? "\\nFAILED:\\n" + failures.join("\\n") : "");
   }
