@@ -17,7 +17,7 @@
   const style = document.createElement("style");
   style.textContent = "html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}#openfl-content{width:100%;height:100%;background:#000}body{touch-action:none}";
   document.head.appendChild(style);
-  document.body.innerHTML = '<div id="openfl-content"></div><div id="fnf-loading" style="position:fixed;inset:0;display:grid;place-items:center;background:#000;color:#fff;font:16px Arial;z-index:99999">Loading Friday Night Funkin’…</div>';
+  document.body.innerHTML = '<div id="openfl-content"></div><div id="fnf-loading" style="position:fixed;inset:0;display:grid;place-items:center;background:#000;color:#fff;font:16px Arial;z-index:99999">Loading Friday Night Funkin’…</div><div id="fnf-asset-diagnostics" style="position:fixed;left:8px;bottom:8px;max-width:94vw;max-height:32vh;overflow:auto;padding:8px 10px;background:rgba(0,0,0,.88);color:#ffd36a;font:11px/1.35 monospace;z-index:100000;white-space:pre-wrap;pointer-events:none">FNF asset diagnostics | loader started | waiting for asset map</div>';
 
   window.addEventListener("touchmove", e => e.preventDefault(), { passive:false });
 
